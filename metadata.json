@@ -1,0 +1,5 @@
+{
+  "name": "Adverssity VR Driving Simulator",
+  "description": "A VR training experience designed to help new drivers learn how to handle difficult night driving conditions safely using A-Frame.",
+  "requestFramePermissions": []
+}
