@@ -3,6 +3,8 @@
  * Handles movement, steering, and basic physics
  */
 
+declare const AFRAME: any;
+
 AFRAME.registerComponent('car-controls', {
   schema: {
     acceleration: { type: 'number', default: 0.5 },
@@ -28,6 +30,7 @@ AFRAME.registerComponent('car-controls', {
       }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
+    console.log("Car controls initialized");
   },
 
   updateHeadlights: function() {
@@ -39,20 +42,20 @@ AFRAME.registerComponent('car-controls', {
     const angle = this.highBeam ? 60 : 35;
     const emissiveIntensity = this.highBeam ? 30 : 6;
 
-    headlights.forEach(light => {
+    headlights.forEach((light: any) => {
       light.setAttribute('intensity', intensity);
       light.setAttribute('distance', distance);
       light.setAttribute('angle', angle);
     });
 
-    headlightVisuals.forEach(sphere => {
+    headlightVisuals.forEach((sphere: any) => {
       sphere.setAttribute('material', 'emissiveIntensity', emissiveIntensity);
     });
 
     this.el.emit('beam-toggle', { highBeam: this.highBeam });
   },
 
-  tick: function (time, timeDelta) {
+  tick: function (time: number, timeDelta: number) {
     const delta = timeDelta / 1000;
     const data = this.data;
 
@@ -74,18 +77,20 @@ AFRAME.registerComponent('car-controls', {
 
     // Apply rotation
     const rotation = this.el.getAttribute('rotation');
+    if (!rotation) return;
     rotation.y += this.steering * this.velocity * 10;
-    this.el.setAttribute('rotation', rotation);
+    (this.el as any).setAttribute('rotation', rotation);
 
     // Apply movement
     const position = this.el.getAttribute('position');
+    if (!position) return;
     const angle = rotation.y * (Math.PI / 180);
     
     // In A-Frame, forward is usually negative Z, but we'll stick to a consistent coordinate system
     position.x -= Math.sin(angle) * this.velocity;
     position.z -= Math.cos(angle) * this.velocity;
     
-    this.el.setAttribute('position', position);
+    (this.el as any).setAttribute('position', position);
 
     // Emit speed for UI
     this.el.emit('speed-update', { speed: Math.abs(this.velocity * 50).toFixed(0) });
@@ -102,17 +107,17 @@ AFRAME.registerComponent('traffic-system', {
     this.obstacles = [];
     this.playerCar = document.querySelector('#player-car');
     this.lastPlayerZ = 0;
-    if (this.playerCar) {
-      const pos = this.playerCar.getAttribute('position');
-      if (pos) this.lastPlayerZ = pos.z;
-    }
+    console.log("Traffic system initialized. Waiting for player car...");
   },
 
-  tick: function (time, timeDelta) {
+  tick: function (time: number, timeDelta: number) {
     if (!this.playerCar) {
       this.playerCar = document.querySelector('#player-car');
       if (!this.playerCar) return;
     }
+
+    // Ensure object3D is ready
+    if (!this.playerCar.object3D) return;
 
     const playerPos = this.playerCar.object3D.position;
     if (!playerPos) return;
@@ -123,8 +128,6 @@ AFRAME.registerComponent('traffic-system', {
       // Limit obstacles to prevent performance issues
       if (this.obstacles.length < 20) {
         this.spawnObstacle();
-      } else {
-        console.log("Obstacle limit reached (20). Current count:", this.obstacles.length);
       }
       this.spawnTimer = 0;
     }
@@ -138,13 +141,12 @@ AFRAME.registerComponent('traffic-system', {
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       try {
         const obj = this.obstacles[i];
-        if (!obj || !obj.parentNode) {
+        if (!obj || !obj.parentNode || !obj.object3D) {
           this.obstacles.splice(i, 1);
           continue;
         }
         
         const pos = obj.object3D.position;
-        const oldZ = pos.z;
         
         // Move towards the player (oncoming traffic moves in +Z)
         pos.z += trafficSpeed * dt; 
@@ -176,7 +178,6 @@ AFRAME.registerComponent('traffic-system', {
         // Evasion Success - Use a flag to ensure it only fires once
         if (!obj.hasPassed && pos.z > playerPos.z) {
           obj.hasPassed = true;
-          console.log("Emitting evasion-success for obstacle at", pos.z);
           this.playerCar.emit('evasion-success');
         }
 
@@ -198,18 +199,16 @@ AFRAME.registerComponent('traffic-system', {
       const sceneEl = this.el.sceneEl;
       if (!sceneEl) return;
       
-      console.log("Spawning obstacle at lane x:", (Math.random() - 0.5) * 12);
       const obstacle = document.createElement('a-entity');
       
       // Random lane
       const xPos = (Math.random() - 0.5) * 12;
       // Spawn ahead of the player's current position
-      if (!this.playerCar) return;
-      const playerPos = this.playerCar.getAttribute('position');
-      if (!playerPos) return;
+      if (!this.playerCar || !this.playerCar.object3D) return;
+      const playerPos = this.playerCar.object3D.position;
       const zPos = playerPos.z - 250; // Spawn further ahead
 
-      obstacle.setAttribute('position', { x: xPos, y: 0, z: zPos });
+      (obstacle as any).setAttribute('position', { x: xPos, y: 0, z: zPos });
       obstacle.setAttribute('class', 'obstacle');
       
       // Use GLB model for traffic
@@ -250,6 +249,7 @@ AFRAME.registerComponent('traffic-system', {
 
       sceneEl.appendChild(obstacle);
       this.obstacles.push(obstacle);
+      console.log("Spawned car at Z:", zPos);
     } catch (e) {
       console.error("Error spawning obstacle:", e);
     }
@@ -261,7 +261,7 @@ AFRAME.registerComponent('traffic-system', {
  */
 AFRAME.registerComponent('collision-detector', {
   init: function () {
-    this.el.addEventListener('collide', (e) => {
+    this.el.addEventListener('collide', (e: any) => {
       const target = e.detail.body.el;
       if (target && target.classList.contains('obstacle')) {
         this.el.emit('collision-alert');
@@ -283,6 +283,7 @@ AFRAME.registerComponent('follow-player', {
     if (!this.data.target) return;
     const targetPos = this.data.target.getAttribute('position');
     const currentPos = this.el.getAttribute('position');
+    if (!targetPos || !currentPos) return;
     
     if (this.data.axis === 'z') {
       currentPos.z = targetPos.z;
@@ -291,6 +292,6 @@ AFRAME.registerComponent('follow-player', {
       currentPos.z = targetPos.z;
     }
     
-    this.el.setAttribute('position', currentPos);
+    (this.el as any).setAttribute('position', currentPos);
   }
 });
